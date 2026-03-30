@@ -19,7 +19,7 @@ const HealthManagementScreen = () => {
     { id: 3, name: '游泳', duration: '60分钟', calories: 400, time: '12:00' },
   ];
 
-  const饮食记录 = [
+  const 饮食记录 = [
     { id: 1, meal: '早餐', items: ['牛奶', '鸡蛋', '面包'], calories: 350, time: '08:00' },
     { id: 2, meal: '午餐', items: ['米饭', '鸡肉', '蔬菜'], calories: 650, time: '12:30' },
     { id: 3, meal: '晚餐', items: ['面条', '鱼肉', '豆腐'], calories: 500, time: '19:00' },
