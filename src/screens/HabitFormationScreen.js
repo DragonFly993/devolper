@@ -1,0 +1,367 @@
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Alert } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { getHabits, addHabit, updateHabit, deleteHabit as deleteHabitFromDB } from '../utils/database';
+
+const HabitFormationScreen = () => {
+  const [habits, setHabits] = useState([]);
+  const [newHabit, setNewHabit] = useState('');
+  const [selectedColor, setSelectedColor] = useState('#4CAF50');
+
+  // 加载习惯
+  useEffect(() => {
+    loadHabits();
+  }, []);
+
+  const loadHabits = async () => {
+    try {
+      const habitsFromDB = await getHabits();
+      setHabits(habitsFromDB);
+    } catch (error) {
+      console.error('Error loading habits:', error);
+      Alert.alert('错误', '加载习惯失败');
+    }
+  };
+
+  const toggleHabit = async (id) => {
+    const updatedHabits = habits.map(habit => {
+      if (habit.id === id) {
+        const newCompleted = !habit.completed;
+        const newStreak = newCompleted ? habit.streak + 1 : habit.streak;
+        return { ...habit, completed: newCompleted, streak: newStreak };
+      }
+      return habit;
+    });
+    setHabits(updatedHabits);
+    
+    try {
+      const habitToUpdate = updatedHabits.find(habit => habit.id === id);
+      await updateHabit(habitToUpdate);
+    } catch (error) {
+      console.error('Error updating habit:', error);
+      Alert.alert('错误', '更新习惯失败');
+      // 恢复原始状态
+      loadHabits();
+    }
+  };
+
+  const addHabitHandler = async () => {
+    if (newHabit.trim()) {
+      const newHabitObj = {
+        name: newHabit,
+        completed: false,
+        streak: 0,
+        color: selectedColor,
+      };
+      
+      try {
+        await addHabit(newHabitObj);
+        await loadHabits();
+        setNewHabit('');
+      } catch (error) {
+        console.error('Error adding habit:', error);
+        Alert.alert('错误', '添加习惯失败');
+      }
+    }
+  };
+
+  const deleteHabit = async (id) => {
+    try {
+      await deleteHabitFromDB(id);
+      setHabits(habits.filter(habit => habit.id !== id));
+    } catch (error) {
+      console.error('Error deleting habit:', error);
+      Alert.alert('错误', '删除习惯失败');
+    }
+  };
+
+  const colors = ['#4CAF50', '#2196F3', '#ff9800', '#f44336', '#9c27b0', '#03a9f4'];
+
+  return (
+    <ScrollView style={styles.container}>
+      {/* 添加习惯 */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>添加新习惯</Text>
+        <View style={styles.addHabitContainer}>
+          <TextInput
+            style={styles.input}
+            placeholder="习惯名称"
+            value={newHabit}
+            onChangeText={setNewHabit}
+          />
+          <View style={styles.colorSelector}>
+            {colors.map(color => (
+              <TouchableOpacity 
+                key={color}
+                style={[
+                  styles.colorButton, 
+                  { backgroundColor: color },
+                  selectedColor === color && styles.colorButtonSelected
+                ]}
+                onPress={() => setSelectedColor(color)}
+              >
+                {selectedColor === color && <Ionicons name="checkmark" size={16} color="white" />}
+              </TouchableOpacity>
+            ))}
+          </View>
+          <TouchableOpacity style={[styles.addButton, { backgroundColor: selectedColor }]} onPress={addHabitHandler}>
+            <Text style={styles.addButtonText}>添加</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* 习惯列表 */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>我的习惯</Text>
+        <View style={styles.habitsContainer}>
+          {habits.map(habit => (
+            <View key={habit.id} style={styles.habitItem}>
+              <View style={styles.habitLeft}>
+                <TouchableOpacity 
+                  style={[
+                    styles.checkbox, 
+                    { borderColor: habit.color },
+                    habit.completed && { backgroundColor: habit.color }
+                  ]}
+                  onPress={() => toggleHabit(habit.id)}
+                >
+                  {habit.completed && <Ionicons name="checkmark" size={20} color="white" />}
+                </TouchableOpacity>
+                <View style={styles.habitInfo}>
+                  <Text style={styles.habitName}>{habit.name}</Text>
+                  <Text style={styles.habitStreak}>连续 {habit.streak} 天</Text>
+                </View>
+              </View>
+              <TouchableOpacity onPress={() => deleteHabit(habit.id)}>
+                <Ionicons name="trash-outline" size={20} color="#999" />
+              </TouchableOpacity>
+            </View>
+          ))}
+        </View>
+      </View>
+
+      {/* 习惯统计 */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>习惯统计</Text>
+        <View style={styles.statsContainer}>
+          <View style={styles.statCard}>
+            <Ionicons name="flame" size={32} color="#ff9800" />
+            <Text style={styles.statValue}>{habits.length}</Text>
+            <Text style={styles.statLabel}>总习惯数</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Ionicons name="checkmark-circle" size={32} color="#4CAF50" />
+            <Text style={styles.statValue}>{habits.filter(h => h.completed).length}</Text>
+            <Text style={styles.statLabel}>今日完成</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Ionicons name="trophy" size={32} color="#9c27b0" />
+            <Text style={styles.statValue}>{Math.max(...habits.map(h => h.streak), 0)}</Text>
+            <Text style={styles.statLabel}>最长连续</Text>
+          </View>
+        </View>
+      </View>
+
+      {/* 习惯日历 */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>习惯日历</Text>
+        <View style={styles.calendarContainer}>
+          <Text style={styles.calendarText}>2026年3月</Text>
+          <View style={styles.calendarGrid}>
+            {['日', '一', '二', '三', '四', '五', '六'].map((day, index) => (
+              <Text key={index} style={styles.calendarDayHeader}>{day}</Text>
+            ))}
+            {Array.from({ length: 31 }, (_, index) => {
+              const day = index + 1;
+              const isCompleted = Math.random() > 0.5; // 模拟完成情况
+              return (
+                <TouchableOpacity key={index} style={styles.calendarDay}>
+                  <Text style={[styles.calendarDayText, isCompleted && styles.calendarDayTextCompleted]}>
+                    {day}
+                  </Text>
+                  {isCompleted && <View style={styles.calendarDayDot} />}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+      </View>
+    </ScrollView>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+  },
+  section: {
+    backgroundColor: 'white',
+    marginHorizontal: 16,
+    marginVertical: 8,
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 16,
+    color: '#333',
+  },
+  addHabitContainer: {
+    gap: 12,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+  },
+  colorSelector: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  colorButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  colorButtonSelected: {
+    borderWidth: 3,
+    borderColor: 'white',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  addButton: {
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  addButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  habitsContainer: {
+    gap: 12,
+  },
+  habitItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  habitLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  checkbox: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  habitInfo: {
+    flex: 1,
+  },
+  habitName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  habitStreak: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 4,
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  statCard: {
+    flex: 1,
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    marginHorizontal: 4,
+  },
+  statValue: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginTop: 8,
+    color: '#333',
+  },
+  statLabel: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 4,
+  },
+  calendarContainer: {
+    alignItems: 'center',
+  },
+  calendarText: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 12,
+    color: '#333',
+  },
+  calendarGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    width: '100%',
+  },
+  calendarDayHeader: {
+    width: '14.28%',
+    textAlign: 'center',
+    paddingVertical: 8,
+    fontWeight: '600',
+    color: '#666',
+  },
+  calendarDay: {
+    width: '14.28%',
+    aspectRatio: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  calendarDayText: {
+    fontSize: 14,
+    color: '#333',
+  },
+  calendarDayTextCompleted: {
+    color: '#4CAF50',
+    fontWeight: '600',
+  },
+  calendarDayDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#4CAF50',
+    marginTop: 4,
+  },
+});
+
+export default HabitFormationScreen;
