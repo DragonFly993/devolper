@@ -1,17 +1,43 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { getHabits, addHabit, updateHabit, deleteHabit as deleteHabitFromDB } from '../utils/database';
+import {
+  getHabits,
+  addHabit,
+  updateHabit,
+  deleteHabit as deleteHabitFromDB,
+  recordHabitCheckIn,
+  getHabitCalendarDatesInMonth,
+} from '../utils/database';
+
+const pad2 = (n) => String(n).padStart(2, '0');
 
 const HabitFormationScreen = () => {
   const [habits, setHabits] = useState([]);
   const [newHabit, setNewHabit] = useState('');
   const [selectedColor, setSelectedColor] = useState('#4CAF50');
+  const [calendarYear, setCalendarYear] = useState(() => new Date().getFullYear());
+  const [calendarMonth, setCalendarMonth] = useState(() => new Date().getMonth() + 1);
+  const [habitDoneDates, setHabitDoneDates] = useState([]);
 
-  // 加载习惯
+  const todayStr = () => new Date().toISOString().split('T')[0];
+
   useEffect(() => {
     loadHabits();
   }, []);
+
+  const loadHabitCalendar = useCallback(async () => {
+    try {
+      const dates = await getHabitCalendarDatesInMonth(calendarYear, calendarMonth);
+      setHabitDoneDates(dates);
+    } catch (e) {
+      console.error(e);
+    }
+  }, [calendarYear, calendarMonth]);
+
+  useEffect(() => {
+    loadHabitCalendar();
+  }, [loadHabitCalendar]);
 
   const loadHabits = async () => {
     try {
@@ -24,7 +50,7 @@ const HabitFormationScreen = () => {
   };
 
   const toggleHabit = async (id) => {
-    const updatedHabits = habits.map(habit => {
+    const updatedHabits = habits.map((habit) => {
       if (habit.id === id) {
         const newCompleted = !habit.completed;
         const newStreak = newCompleted ? habit.streak + 1 : habit.streak;
@@ -33,14 +59,16 @@ const HabitFormationScreen = () => {
       return habit;
     });
     setHabits(updatedHabits);
-    
+
     try {
-      const habitToUpdate = updatedHabits.find(habit => habit.id === id);
+      const habitToUpdate = updatedHabits.find((habit) => habit.id === id);
+      const newCompleted = habitToUpdate.completed;
       await updateHabit(habitToUpdate);
+      await recordHabitCheckIn(id, todayStr(), newCompleted);
+      await loadHabitCalendar();
     } catch (error) {
       console.error('Error updating habit:', error);
       Alert.alert('错误', '更新习惯失败');
-      // 恢复原始状态
       loadHabits();
     }
   };
@@ -53,7 +81,7 @@ const HabitFormationScreen = () => {
         streak: 0,
         color: selectedColor,
       };
-      
+
       try {
         await addHabit(newHabitObj);
         await loadHabits();
@@ -68,7 +96,8 @@ const HabitFormationScreen = () => {
   const deleteHabit = async (id) => {
     try {
       await deleteHabitFromDB(id);
-      setHabits(habits.filter(habit => habit.id !== id));
+      setHabits(habits.filter((habit) => habit.id !== id));
+      await loadHabitCalendar();
     } catch (error) {
       console.error('Error deleting habit:', error);
       Alert.alert('错误', '删除习惯失败');
@@ -77,9 +106,35 @@ const HabitFormationScreen = () => {
 
   const colors = ['#4CAF50', '#2196F3', '#ff9800', '#f44336', '#9c27b0', '#03a9f4'];
 
+  const doneSet = new Set(habitDoneDates);
+
+  const shiftMonth = (delta) => {
+    let m = calendarMonth + delta;
+    let y = calendarYear;
+    if (m > 12) {
+      m = 1;
+      y += 1;
+    } else if (m < 1) {
+      m = 12;
+      y -= 1;
+    }
+    setCalendarMonth(m);
+    setCalendarYear(y);
+  };
+
+  const daysInMonth = new Date(calendarYear, calendarMonth, 0).getDate();
+  const firstWeekday = new Date(calendarYear, calendarMonth - 1, 1).getDay();
+  const cells = [];
+  for (let i = 0; i < firstWeekday; i++) {
+    cells.push({ type: 'blank', key: `b${i}` });
+  }
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${calendarYear}-${pad2(calendarMonth)}-${pad2(d)}`;
+    cells.push({ type: 'day', key: `d${d}`, day: d, dateStr });
+  }
+
   return (
     <ScrollView style={styles.container}>
-      {/* 添加习惯 */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>添加新习惯</Text>
         <View style={styles.addHabitContainer}>
@@ -90,13 +145,13 @@ const HabitFormationScreen = () => {
             onChangeText={setNewHabit}
           />
           <View style={styles.colorSelector}>
-            {colors.map(color => (
-              <TouchableOpacity 
+            {colors.map((color) => (
+              <TouchableOpacity
                 key={color}
                 style={[
-                  styles.colorButton, 
+                  styles.colorButton,
                   { backgroundColor: color },
-                  selectedColor === color && styles.colorButtonSelected
+                  selectedColor === color && styles.colorButtonSelected,
                 ]}
                 onPress={() => setSelectedColor(color)}
               >
@@ -110,18 +165,17 @@ const HabitFormationScreen = () => {
         </View>
       </View>
 
-      {/* 习惯列表 */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>我的习惯</Text>
         <View style={styles.habitsContainer}>
-          {habits.map(habit => (
+          {habits.map((habit) => (
             <View key={habit.id} style={styles.habitItem}>
               <View style={styles.habitLeft}>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={[
-                    styles.checkbox, 
+                    styles.checkbox,
                     { borderColor: habit.color },
-                    habit.completed && { backgroundColor: habit.color }
+                    habit.completed && { backgroundColor: habit.color },
                   ]}
                   onPress={() => toggleHabit(habit.id)}
                 >
@@ -140,7 +194,6 @@ const HabitFormationScreen = () => {
         </View>
       </View>
 
-      {/* 习惯统计 */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>习惯统计</Text>
         <View style={styles.statsContainer}>
@@ -151,39 +204,54 @@ const HabitFormationScreen = () => {
           </View>
           <View style={styles.statCard}>
             <Ionicons name="checkmark-circle" size={32} color="#4CAF50" />
-            <Text style={styles.statValue}>{habits.filter(h => h.completed).length}</Text>
+            <Text style={styles.statValue}>{habits.filter((h) => h.completed).length}</Text>
             <Text style={styles.statLabel}>今日完成</Text>
           </View>
           <View style={styles.statCard}>
             <Ionicons name="trophy" size={32} color="#9c27b0" />
-            <Text style={styles.statValue}>{Math.max(...habits.map(h => h.streak), 0)}</Text>
+            <Text style={styles.statValue}>{Math.max(...habits.map((h) => h.streak), 0)}</Text>
             <Text style={styles.statLabel}>最长连续</Text>
           </View>
         </View>
       </View>
 
-      {/* 习惯日历 */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>习惯日历</Text>
-        <View style={styles.calendarContainer}>
-          <Text style={styles.calendarText}>2026年3月</Text>
-          <View style={styles.calendarGrid}>
-            {['日', '一', '二', '三', '四', '五', '六'].map((day, index) => (
-              <Text key={index} style={styles.calendarDayHeader}>{day}</Text>
-            ))}
-            {Array.from({ length: 31 }, (_, index) => {
-              const day = index + 1;
-              const isCompleted = Math.random() > 0.5; // 模拟完成情况
-              return (
-                <TouchableOpacity key={index} style={styles.calendarDay}>
-                  <Text style={[styles.calendarDayText, isCompleted && styles.calendarDayTextCompleted]}>
-                    {day}
-                  </Text>
-                  {isCompleted && <View style={styles.calendarDayDot} />}
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+        <Text style={styles.calendarSub}>有打点表示当日至少完成一项习惯打卡</Text>
+        <View style={styles.calendarHeaderRow}>
+          <TouchableOpacity onPress={() => shiftMonth(-1)} hitSlop={12}>
+            <Ionicons name="chevron-back" size={24} color="#4CAF50" />
+          </TouchableOpacity>
+          <Text style={styles.calendarText}>
+            {calendarYear}年{calendarMonth}月
+          </Text>
+          <TouchableOpacity onPress={() => shiftMonth(1)} hitSlop={12}>
+            <Ionicons name="chevron-forward" size={24} color="#4CAF50" />
+          </TouchableOpacity>
+        </View>
+        <View style={styles.calendarGrid}>
+          {['日', '一', '二', '三', '四', '五', '六'].map((day, index) => (
+            <Text key={index} style={styles.calendarDayHeader}>
+              {day}
+            </Text>
+          ))}
+          {cells.map((cell) =>
+            cell.type === 'blank' ? (
+              <View key={cell.key} style={styles.calendarDay} />
+            ) : (
+              <View key={cell.key} style={styles.calendarDay}>
+                <Text
+                  style={[
+                    styles.calendarDayText,
+                    doneSet.has(cell.dateStr) && styles.calendarDayTextCompleted,
+                  ]}
+                >
+                  {cell.day}
+                </Text>
+                {doneSet.has(cell.dateStr) ? <View style={styles.calendarDayDot} /> : null}
+              </View>
+            )
+          )}
         </View>
       </View>
     </ScrollView>
@@ -215,6 +283,17 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 16,
     color: '#333',
+  },
+  calendarSub: {
+    fontSize: 12,
+    color: '#888',
+    marginBottom: 12,
+  },
+  calendarHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
   },
   addHabitContainer: {
     gap: 12,
@@ -320,13 +399,9 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 4,
   },
-  calendarContainer: {
-    alignItems: 'center',
-  },
   calendarText: {
     fontSize: 16,
     fontWeight: '600',
-    marginBottom: 12,
     color: '#333',
   },
   calendarGrid: {
