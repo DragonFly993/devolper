@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import {
   getHabits,
   addHabit,
@@ -13,6 +14,7 @@ import {
 const pad2 = (n) => String(n).padStart(2, '0');
 
 const HabitFormationScreen = () => {
+  const navigation = useNavigation();
   const [habits, setHabits] = useState([]);
   const [newHabit, setNewHabit] = useState('');
   const [selectedColor, setSelectedColor] = useState('#4CAF50');
@@ -135,6 +137,10 @@ const HabitFormationScreen = () => {
 
   return (
     <ScrollView style={styles.container}>
+      <TouchableOpacity style={styles.reminderEntry} onPress={() => navigation.navigate('ReminderCenter')}>
+        <Ionicons name="notifications-outline" size={18} color="#0EA5E9" />
+        <Text style={styles.reminderEntryText}>习惯提醒中心</Text>
+      </TouchableOpacity>
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>添加新习惯</Text>
         <View style={styles.addHabitContainer}>
@@ -278,6 +284,18 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
     elevation: 5,
   },
+  reminderEntry: {
+    marginHorizontal: 16,
+    marginVertical: 8,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#e0f2fe',
+  },
+  reminderEntryText: { color: '#0369a1', fontWeight: '600' },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',

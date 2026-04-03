@@ -14,6 +14,11 @@ let memoryStorage = {
   habit_check_ins: [],
   settings: {},
   users: [],
+  reminders: [],
+  notification_tokens: [],
+  wallet_accounts: [],
+  wallet_ledger: [],
+  payment_orders: [],
 };
 
 /** Web：刷新后恢复本地数据（含用户账号），避免仅 session 存在而 users 丢失 */
@@ -34,6 +39,11 @@ function loadWebPersistence() {
     memoryStorage.habit_check_ins = Array.isArray(p.habit_check_ins) ? p.habit_check_ins : [];
     memoryStorage.settings = p.settings && typeof p.settings === 'object' ? p.settings : {};
     memoryStorage.users = Array.isArray(p.users) ? p.users : [];
+    memoryStorage.reminders = Array.isArray(p.reminders) ? p.reminders : [];
+    memoryStorage.notification_tokens = Array.isArray(p.notification_tokens) ? p.notification_tokens : [];
+    memoryStorage.wallet_accounts = Array.isArray(p.wallet_accounts) ? p.wallet_accounts : [];
+    memoryStorage.wallet_ledger = Array.isArray(p.wallet_ledger) ? p.wallet_ledger : [];
+    memoryStorage.payment_orders = Array.isArray(p.payment_orders) ? p.payment_orders : [];
   } catch (e) {
     console.warn('loadWebPersistence', e);
   }
@@ -114,6 +124,26 @@ export const initDatabase = () => {
         [],
         () => {},
         () => true
+      );
+
+      tx.executeSql(
+        'CREATE TABLE IF NOT EXISTS reminders (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, body TEXT, remind_at TEXT NOT NULL, repeat_type TEXT DEFAULT "none", enabled INTEGER DEFAULT 1, channel TEXT DEFAULT "local", source_module TEXT, createdAt TEXT NOT NULL, updatedAt TEXT NOT NULL);'
+      );
+      tx.executeSql(
+        'CREATE TABLE IF NOT EXISTS notification_tokens (id INTEGER PRIMARY KEY AUTOINCREMENT, platform TEXT NOT NULL, token TEXT NOT NULL, updatedAt TEXT NOT NULL);'
+      );
+      tx.executeSql(
+        'CREATE TABLE IF NOT EXISTS wallet_accounts (id INTEGER PRIMARY KEY AUTOINCREMENT, balance REAL DEFAULT 0, frozen REAL DEFAULT 0, updatedAt TEXT NOT NULL);'
+      );
+      tx.executeSql(
+        'CREATE TABLE IF NOT EXISTS wallet_ledger (id INTEGER PRIMARY KEY AUTOINCREMENT, account_id INTEGER NOT NULL, order_no TEXT, type TEXT NOT NULL, amount REAL NOT NULL, status TEXT NOT NULL, note TEXT, createdAt TEXT NOT NULL);'
+      );
+      tx.executeSql(
+        'CREATE TABLE IF NOT EXISTS payment_orders (id INTEGER PRIMARY KEY AUTOINCREMENT, order_no TEXT UNIQUE NOT NULL, channel TEXT NOT NULL, amount REAL NOT NULL, status TEXT NOT NULL, direction TEXT NOT NULL, note TEXT, createdAt TEXT NOT NULL, updatedAt TEXT NOT NULL);'
+      );
+      tx.executeSql(
+        'INSERT OR IGNORE INTO wallet_accounts (id, balance, frozen, updatedAt) VALUES (1, 0, 0, ?);',
+        [new Date().toISOString()]
       );
     });
 };
@@ -963,3 +993,342 @@ export const getDailyFocusSecondsForMonth = (year, month) => {
     }
   });
 };
+
+const nowIso = () => new Date().toISOString();
+const mkId = () => Date.now() + Math.floor(Math.random() * 1000000);
+
+export const addReminder = (payload) => {
+  const reminder = {
+    id: mkId(),
+    title: payload.title,
+    body: payload.body || '',
+    remind_at: payload.remindAt,
+    repeat_type: payload.repeatType || 'none',
+    enabled: payload.enabled == null ? 1 : (payload.enabled ? 1 : 0),
+    channel: payload.channel || 'local',
+    source_module: payload.sourceModule || null,
+    createdAt: nowIso(),
+    updatedAt: nowIso(),
+  };
+  return new Promise((resolve, reject) => {
+    if (isWeb) {
+      memoryStorage.reminders.push(reminder);
+      persistWebPersistence();
+      resolve({ insertId: reminder.id, reminder });
+      return;
+    }
+    db.transaction((tx) => {
+      tx.executeSql(
+        'INSERT INTO reminders (title, body, remind_at, repeat_type, enabled, channel, source_module, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);',
+        [reminder.title, reminder.body, reminder.remind_at, reminder.repeat_type, reminder.enabled, reminder.channel, reminder.source_module, reminder.createdAt, reminder.updatedAt],
+        (_, result) => resolve({ insertId: result.insertId, reminder: { ...reminder, id: result.insertId } }),
+        (_, error) => reject(error)
+      );
+    });
+  });
+};
+
+export const getReminders = () =>
+  new Promise((resolve, reject) => {
+    if (isWeb) {
+      resolve(
+        [...memoryStorage.reminders]
+          .sort((a, b) => new Date(a.remind_at) - new Date(b.remind_at))
+          .map((r) => ({
+            id: r.id,
+            title: r.title,
+            body: r.body,
+            remindAt: r.remind_at,
+            repeatType: r.repeat_type,
+            enabled: Number(r.enabled) === 1,
+            channel: r.channel,
+            sourceModule: r.source_module || null,
+            createdAt: r.createdAt,
+            updatedAt: r.updatedAt,
+          }))
+      );
+      return;
+    }
+    db.transaction((tx) => {
+      tx.executeSql(
+        'SELECT * FROM reminders ORDER BY remind_at ASC;',
+        [],
+        (_, result) => {
+          const rows = [];
+          for (let i = 0; i < result.rows.length; i++) {
+            const r = result.rows.item(i);
+            rows.push({
+              id: r.id,
+              title: r.title,
+              body: r.body,
+              remindAt: r.remind_at,
+              repeatType: r.repeat_type,
+              enabled: r.enabled === 1,
+              channel: r.channel,
+              sourceModule: r.source_module || null,
+              createdAt: r.createdAt,
+              updatedAt: r.updatedAt,
+            });
+          }
+          resolve(rows);
+        },
+        (_, error) => reject(error)
+      );
+    });
+  });
+
+export const updateReminder = (reminder) =>
+  new Promise((resolve, reject) => {
+    const updatedAt = nowIso();
+    if (isWeb) {
+      const idx = memoryStorage.reminders.findIndex((r) => Number(r.id) === Number(reminder.id));
+      if (idx < 0) return resolve({ rowsAffected: 0 });
+      memoryStorage.reminders[idx] = {
+        ...memoryStorage.reminders[idx],
+        title: reminder.title,
+        body: reminder.body || '',
+        remind_at: reminder.remindAt,
+        repeat_type: reminder.repeatType || 'none',
+        enabled: reminder.enabled ? 1 : 0,
+        channel: reminder.channel || 'local',
+        source_module: reminder.sourceModule || null,
+        updatedAt,
+      };
+      persistWebPersistence();
+      return resolve({ rowsAffected: 1 });
+    }
+    db.transaction((tx) => {
+      tx.executeSql(
+        'UPDATE reminders SET title = ?, body = ?, remind_at = ?, repeat_type = ?, enabled = ?, channel = ?, source_module = ?, updatedAt = ? WHERE id = ?;',
+        [reminder.title, reminder.body || '', reminder.remindAt, reminder.repeatType || 'none', reminder.enabled ? 1 : 0, reminder.channel || 'local', reminder.sourceModule || null, updatedAt, reminder.id],
+        (_, result) => resolve(result),
+        (_, error) => reject(error)
+      );
+    });
+  });
+
+export const deleteReminder = (id) =>
+  new Promise((resolve, reject) => {
+    if (isWeb) {
+      const before = memoryStorage.reminders.length;
+      memoryStorage.reminders = memoryStorage.reminders.filter((r) => Number(r.id) !== Number(id));
+      persistWebPersistence();
+      return resolve({ rowsAffected: before - memoryStorage.reminders.length });
+    }
+    db.transaction((tx) => {
+      tx.executeSql('DELETE FROM reminders WHERE id = ?;', [id], (_, result) => resolve(result), (_, error) => reject(error));
+    });
+  });
+
+export const saveNotificationToken = ({ platform, token }) =>
+  new Promise((resolve, reject) => {
+    const updatedAt = nowIso();
+    if (isWeb) {
+      const idx = memoryStorage.notification_tokens.findIndex((x) => x.platform === platform);
+      if (idx >= 0) {
+        memoryStorage.notification_tokens[idx] = { ...memoryStorage.notification_tokens[idx], token, updatedAt };
+      } else {
+        memoryStorage.notification_tokens.push({ id: mkId(), platform, token, updatedAt });
+      }
+      persistWebPersistence();
+      return resolve(true);
+    }
+    db.transaction((tx) => {
+      tx.executeSql(
+        'INSERT INTO notification_tokens (platform, token, updatedAt) VALUES (?, ?, ?);',
+        [platform, token, updatedAt],
+        () => resolve(true),
+        (_, error) => reject(error)
+      );
+    });
+  });
+
+export const getTodayReminderCount = async () => {
+  const date = nowIso().slice(0, 10);
+  const reminders = await getReminders();
+  return reminders.filter((r) => r.enabled && String(r.remindAt).startsWith(date)).length;
+};
+
+export const getWalletAccount = () =>
+  new Promise((resolve, reject) => {
+    if (isWeb) {
+      if (!memoryStorage.wallet_accounts.length) {
+        memoryStorage.wallet_accounts.push({ id: 1, balance: 0, frozen: 0, updatedAt: nowIso() });
+        persistWebPersistence();
+      }
+      const acc = memoryStorage.wallet_accounts[0];
+      resolve({ id: acc.id, balance: Number(acc.balance) || 0, frozen: Number(acc.frozen) || 0, updatedAt: acc.updatedAt });
+      return;
+    }
+    db.transaction((tx) => {
+      tx.executeSql(
+        'INSERT OR IGNORE INTO wallet_accounts (id, balance, frozen, updatedAt) VALUES (1, 0, 0, ?);',
+        [nowIso()],
+        () => {
+          tx.executeSql(
+            'SELECT * FROM wallet_accounts WHERE id = 1 LIMIT 1;',
+            [],
+            (_, result) => {
+              const row = result.rows.item(0);
+              resolve({ id: row.id, balance: Number(row.balance) || 0, frozen: Number(row.frozen) || 0, updatedAt: row.updatedAt });
+            },
+            (_, error) => reject(error)
+          );
+        },
+        (_, error) => reject(error)
+      );
+    });
+  });
+
+export const addWalletLedgerEntry = ({ type, amount, status, note, orderNo, accountId = 1 }) =>
+  new Promise((resolve, reject) => {
+    const row = {
+      id: mkId(),
+      account_id: accountId,
+      order_no: orderNo || null,
+      type,
+      amount: Number(amount),
+      status: status || 'done',
+      note: note || '',
+      createdAt: nowIso(),
+    };
+    if (isWeb) {
+      memoryStorage.wallet_ledger.push(row);
+      persistWebPersistence();
+      resolve({ insertId: row.id, row });
+      return;
+    }
+    db.transaction((tx) => {
+      tx.executeSql(
+        'INSERT INTO wallet_ledger (account_id, order_no, type, amount, status, note, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?);',
+        [row.account_id, row.order_no, row.type, row.amount, row.status, row.note, row.createdAt],
+        (_, result) => resolve({ insertId: result.insertId, row: { ...row, id: result.insertId } }),
+        (_, error) => reject(error)
+      );
+    });
+  });
+
+export const getWalletLedger = () =>
+  new Promise((resolve, reject) => {
+    if (isWeb) {
+      resolve([...memoryStorage.wallet_ledger].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
+      return;
+    }
+    db.transaction((tx) => {
+      tx.executeSql(
+        'SELECT * FROM wallet_ledger ORDER BY createdAt DESC;',
+        [],
+        (_, result) => {
+          const rows = [];
+          for (let i = 0; i < result.rows.length; i++) rows.push(result.rows.item(i));
+          resolve(rows);
+        },
+        (_, error) => reject(error)
+      );
+    });
+  });
+
+export const updateWalletBalance = ({ delta }) =>
+  new Promise((resolve, reject) => {
+    if (isWeb) {
+      const acc = memoryStorage.wallet_accounts[0] || { id: 1, balance: 0, frozen: 0, updatedAt: nowIso() };
+      const next = Number(acc.balance || 0) + Number(delta || 0);
+      if (next < 0) return reject(new Error('INSUFFICIENT_BALANCE'));
+      acc.balance = Number(next.toFixed(2));
+      acc.updatedAt = nowIso();
+      memoryStorage.wallet_accounts[0] = acc;
+      persistWebPersistence();
+      return resolve(acc);
+    }
+    db.transaction((tx) => {
+      tx.executeSql(
+        'SELECT balance, frozen FROM wallet_accounts WHERE id = 1 LIMIT 1;',
+        [],
+        (_, result) => {
+          const row = result.rows.item(0) || { balance: 0, frozen: 0 };
+          const next = Number(row.balance || 0) + Number(delta || 0);
+          if (next < 0) {
+            reject(new Error('INSUFFICIENT_BALANCE'));
+            return;
+          }
+          tx.executeSql(
+            'UPDATE wallet_accounts SET balance = ?, updatedAt = ? WHERE id = 1;',
+            [Number(next.toFixed(2)), nowIso()],
+            () => resolve({ id: 1, balance: Number(next.toFixed(2)), frozen: Number(row.frozen || 0), updatedAt: nowIso() }),
+            (_, error) => reject(error)
+          );
+        },
+        (_, error) => reject(error)
+      );
+    });
+  });
+
+export const createPaymentOrder = ({ orderNo, channel, amount, direction, note, status = 'created' }) =>
+  new Promise((resolve, reject) => {
+    const createdAt = nowIso();
+    const row = {
+      id: mkId(),
+      order_no: orderNo,
+      channel,
+      amount: Number(amount),
+      status,
+      direction,
+      note: note || '',
+      createdAt,
+      updatedAt: createdAt,
+    };
+    if (isWeb) {
+      memoryStorage.payment_orders.push(row);
+      persistWebPersistence();
+      resolve(row);
+      return;
+    }
+    db.transaction((tx) => {
+      tx.executeSql(
+        'INSERT INTO payment_orders (order_no, channel, amount, status, direction, note, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?);',
+        [row.order_no, row.channel, row.amount, row.status, row.direction, row.note, row.createdAt, row.updatedAt],
+        (_, result) => resolve({ ...row, id: result.insertId }),
+        (_, error) => reject(error)
+      );
+    });
+  });
+
+export const updatePaymentOrderStatus = ({ orderNo, status, note }) =>
+  new Promise((resolve, reject) => {
+    const updatedAt = nowIso();
+    if (isWeb) {
+      const idx = memoryStorage.payment_orders.findIndex((o) => o.order_no === orderNo);
+      if (idx < 0) return reject(new Error('ORDER_NOT_FOUND'));
+      memoryStorage.payment_orders[idx] = { ...memoryStorage.payment_orders[idx], status, note: note || memoryStorage.payment_orders[idx].note, updatedAt };
+      persistWebPersistence();
+      return resolve(memoryStorage.payment_orders[idx]);
+    }
+    db.transaction((tx) => {
+      tx.executeSql(
+        'UPDATE payment_orders SET status = ?, note = ?, updatedAt = ? WHERE order_no = ?;',
+        [status, note || '', updatedAt, orderNo],
+        () => resolve(true),
+        (_, error) => reject(error)
+      );
+    });
+  });
+
+export const getPaymentOrders = () =>
+  new Promise((resolve, reject) => {
+    if (isWeb) {
+      resolve([...memoryStorage.payment_orders].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
+      return;
+    }
+    db.transaction((tx) => {
+      tx.executeSql(
+        'SELECT * FROM payment_orders ORDER BY createdAt DESC;',
+        [],
+        (_, result) => {
+          const rows = [];
+          for (let i = 0; i < result.rows.length; i++) rows.push(result.rows.item(i));
+          resolve(rows);
+        },
+        (_, error) => reject(error)
+      );
+    });
+  });

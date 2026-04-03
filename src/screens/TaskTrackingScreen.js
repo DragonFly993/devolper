@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import { getTasks, addTask, updateTask, deleteTask as deleteTaskFromDB } from '../utils/database';
 
 const TaskTrackingScreen = () => {
+  const navigation = useNavigation();
   const [tasks, setTasks] = useState([]);
   const [newTask, setNewTask] = useState('');
   const [priority, setPriority] = useState('medium');
@@ -81,6 +83,10 @@ const TaskTrackingScreen = () => {
 
   return (
     <ScrollView style={styles.container}>
+      <TouchableOpacity style={styles.reminderEntry} onPress={() => navigation.navigate('ReminderCenter')}>
+        <Ionicons name="notifications-outline" size={18} color="#0EA5E9" />
+        <Text style={styles.reminderEntryText}>任务提醒中心</Text>
+      </TouchableOpacity>
       {/* 添加任务 */}
       <View style={styles.addTaskContainer}>
         <TextInput
@@ -197,6 +203,19 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
     elevation: 5,
   },
+  reminderEntry: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: -6,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: '#e0f2fe',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  reminderEntryText: { color: '#0369a1', fontWeight: '600' },
   input: {
     flex: 1,
     fontSize: 16,

@@ -20,6 +20,8 @@ import {
   getHabits,
   getTimeRecords,
   getTransactions,
+  getTodayReminderCount,
+  getWalletAccount,
 } from '../utils/database';
 
 const shortcuts = [
@@ -29,6 +31,8 @@ const shortcuts = [
   { name: '健康管理', icon: 'heart-outline', tab: '健康管理', color: '#E11D48' },
   { name: '财务规划', icon: 'cash-outline', tab: '财务规划', color: '#EA580C' },
   { name: '习惯养成', icon: 'flower-outline', tab: '习惯养成', color: '#9333EA' },
+  { name: '提醒中心', icon: 'notifications-outline', stack: 'ReminderCenter', color: '#0EA5E9' },
+  { name: '钱包', icon: 'wallet-outline', tab: '钱包', color: '#16A34A' },
 ];
 
 function formatTodayZh() {
@@ -52,6 +56,8 @@ export default function HomeScreen() {
     todayFocusMin: 0,
     habitCount: 0,
     monthExpense: 0,
+    todayReminderCount: 0,
+    walletBalance: 0,
   });
   const [refreshing, setRefreshing] = useState(false);
 
@@ -60,11 +66,13 @@ export default function HomeScreen() {
   const loadStats = useCallback(async () => {
     const today = new Date().toISOString().split('T')[0];
     try {
-      const [tasks, habits, timeRecs, txs] = await Promise.all([
+      const [tasks, habits, timeRecs, txs, reminderCount, wallet] = await Promise.all([
         getTasks(),
         getHabits(),
         getTimeRecords(today),
         getTransactions(),
+        getTodayReminderCount(),
+        getWalletAccount(),
       ]);
       const todoPending = tasks.filter((t) => !t.completed).length;
       const focusSec = timeRecs.reduce((s, r) => s + r.duration, 0);
@@ -77,6 +85,8 @@ export default function HomeScreen() {
         todayFocusMin: Math.round(focusSec / 60),
         habitCount: habits.length,
         monthExpense,
+        todayReminderCount: reminderCount,
+        walletBalance: wallet?.balance || 0,
       });
     } catch (e) {
       console.error('Home stats', e);
@@ -99,8 +109,12 @@ export default function HomeScreen() {
     navigation.navigate('Account');
   };
 
-  const goTab = (tabName) => {
-    navigation.navigate(tabName);
+  const goTab = (item) => {
+    if (item.stack) {
+      navigation.navigate(item.stack);
+      return;
+    }
+    navigation.navigate(item.tab);
   };
 
   const statItems = [
@@ -127,11 +141,25 @@ export default function HomeScreen() {
       accent: '#9333EA',
     },
     {
+      key: 'reminder',
+      label: '今日提醒',
+      value: String(stats.todayReminderCount),
+      icon: 'notifications-outline',
+      accent: '#0EA5E9',
+    },
+    {
       key: 'expense',
       label: '本月支出',
       value: `¥${stats.monthExpense.toFixed(0)}`,
       icon: 'wallet-outline',
       accent: '#EA580C',
+    },
+    {
+      key: 'wallet',
+      label: '钱包余额',
+      value: `¥${Number(stats.walletBalance || 0).toFixed(0)}`,
+      icon: 'card-outline',
+      accent: '#16A34A',
     },
   ];
 
@@ -214,9 +242,9 @@ export default function HomeScreen() {
         <View style={styles.shortcuts}>
           {shortcuts.map((item, index) => (
             <TouchableOpacity
-              key={item.tab}
+              key={item.tab || item.stack}
               style={[styles.shortcutItem, index === shortcuts.length - 1 && styles.shortcutItemLast]}
-              onPress={() => goTab(item.tab)}
+              onPress={() => goTab(item)}
               activeOpacity={0.7}
             >
               <View style={[styles.shortcutIcon, { backgroundColor: `${item.color}18` }]}>

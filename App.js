@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -16,7 +16,11 @@ import LoginScreen from './src/screens/auth/LoginScreen';
 import RegisterScreen from './src/screens/auth/RegisterScreen';
 import AccountScreen from './src/screens/AccountScreen';
 import AiAssistantScreen from './src/screens/AiAssistantScreen';
+import ReminderCenterScreen from './src/screens/ReminderCenterScreen';
+import WalletScreen from './src/screens/WalletScreen';
 import { colors, shadow } from './src/theme/tokens';
+import { registerNotificationToken, subscribeForegroundNotifications } from './src/services/notificationService';
+import { rescheduleAllReminders } from './src/services/reminderScheduler';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -37,6 +41,7 @@ const tabScreenOptions = ({ route }) => ({
       健康管理: focused ? 'heart' : 'heart-outline',
       财务规划: focused ? 'cash' : 'cash-outline',
       习惯养成: focused ? 'flower' : 'flower-outline',
+      钱包: focused ? 'wallet' : 'wallet-outline',
     };
     const iconName = map[route.name] || 'ellipse';
     return <Ionicons name={iconName} size={size} color={color} />;
@@ -76,6 +81,7 @@ function MainTabs() {
       <Tab.Screen name="健康管理" component={HealthManagementScreen} />
       <Tab.Screen name="财务规划" component={FinancePlanningScreen} />
       <Tab.Screen name="习惯养成" component={HabitFormationScreen} />
+      <Tab.Screen name="钱包" component={WalletScreen} />
     </Tab.Navigator>
   );
 }
@@ -115,6 +121,18 @@ function RootNavigator() {
               headerShadowVisible: false,
             }}
           />
+          <Stack.Screen
+            name="ReminderCenter"
+            component={ReminderCenterScreen}
+            options={{
+              headerShown: true,
+              title: '提醒中心',
+              headerStyle: headerGreen,
+              headerTintColor: '#fff',
+              headerTitleStyle: { fontWeight: '700', fontSize: 17 },
+              headerShadowVisible: false,
+            }}
+          />
         </>
       )}
     </Stack.Navigator>
@@ -122,6 +140,13 @@ function RootNavigator() {
 }
 
 export default function App() {
+  useEffect(() => {
+    registerNotificationToken().catch(() => {});
+    rescheduleAllReminders().catch(() => {});
+    const unsubscribe = subscribeForegroundNotifications(() => {});
+    return () => unsubscribe();
+  }, []);
+
   return (
     <SafeAreaProvider>
       <AuthProvider>

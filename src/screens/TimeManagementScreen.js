@@ -62,7 +62,7 @@ function showAlert(title, message) {
   Alert.alert(title, message);
 }
 
-const TimeManagementScreen = () => {
+const TimeManagementScreen = ({ navigation }) => {
   const [sessionMinutes, setSessionMinutes] = useState(25);
   const sessionSeconds = sessionMinutes * 60;
 
@@ -294,6 +294,10 @@ const TimeManagementScreen = () => {
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
     >
+      <TouchableOpacity style={styles.reminderEntry} onPress={() => navigation.navigate('ReminderCenter')}>
+        <Ionicons name="notifications-outline" size={18} color="#0EA5E9" />
+        <Text style={styles.reminderEntryText}>专注提醒中心</Text>
+      </TouchableOpacity>
       <View style={styles.hero}>
         <View style={styles.heroHeader}>
           <Ionicons name="timer-outline" size={22} color={colors.primary} />
@@ -539,6 +543,19 @@ const styles = StyleSheet.create({
   content: {
     paddingBottom: 28,
   },
+  reminderEntry: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 0,
+    borderRadius: radius.md,
+    backgroundColor: '#e0f2fe',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  reminderEntryText: { color: '#0369a1', fontWeight: '600' },
   hero: {
     marginHorizontal: 16,
     marginTop: 12,
