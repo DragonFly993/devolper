@@ -11,7 +11,7 @@ import {
   Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import { colors, radius, shadow } from '../../theme/tokens';
 
@@ -21,16 +21,41 @@ export default function LoginScreen({ navigation }) {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const showMessage = (title, message) => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      window.alert(`${title}\n${message}`);
+      return;
+    }
+    Alert.alert(title, message);
+  };
+
+  const showNeedRegister = () => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      const ok = window.confirm('账号不存在或密码错误。首次登录请先注册账号。\n\n是否前往注册？');
+      if (ok) navigation.navigate('Register');
+      return;
+    }
+    Alert.alert('登录失败', '账号不存在或密码错误。首次登录请先注册账号。', [
+      { text: '取消', style: 'cancel' },
+      { text: '去注册', onPress: () => navigation.navigate('Register') },
+    ]);
+  };
+
   const onSubmit = async () => {
     if (!email.trim() || !password) {
-      Alert.alert('提示', '请输入邮箱和密码');
+      showMessage('提示', '请输入邮箱和密码');
       return;
     }
     setLoading(true);
     try {
       const res = await signIn(email.trim(), password);
       if (!res.ok) {
-        Alert.alert('登录失败', res.error || '请重试');
+        const msg = res.error || '请重试';
+        if (msg.includes('邮箱或密码错误')) {
+          showNeedRegister();
+          return;
+        }
+        showMessage('登录失败', msg);
       }
     } finally {
       setLoading(false);
@@ -44,11 +69,11 @@ export default function LoginScreen({ navigation }) {
           <View style={styles.header}>
             <LinearGradient colors={[colors.primaryDark, colors.primary]} style={styles.logoRing} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
               <View style={styles.logoInner}>
-                <Ionicons name="leaf" size={40} color="#fff" />
+                <MaterialCommunityIcons name="shield-account" size={40} color="#fff" />
               </View>
             </LinearGradient>
             <Text style={styles.title}>自我管理</Text>
-            <Text style={styles.subtitle}>登录后，专注、任务与健康数据保存在本设备</Text>
+            <Text style={styles.subtitle}>专注、高效、任务、健康与财务</Text>
           </View>
 
           <View style={[styles.card, shadow.card]}>
@@ -86,7 +111,8 @@ export default function LoginScreen({ navigation }) {
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.footerHint}>Web 端刷新页面后仍保持登录（数据已写入浏览器本地存储）</Text>
+          <Text style={styles.footerHint}>上海爱龙科技@2026 </Text>
+          <Text style={styles.footerHint}>App版权归 魏隆飞 所有 </Text>
         </ScrollView>
       </KeyboardAvoidingView>
     </LinearGradient>
