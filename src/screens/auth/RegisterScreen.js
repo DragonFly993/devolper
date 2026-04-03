@@ -24,17 +24,37 @@ export default function RegisterScreen() {
   const [password2, setPassword2] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const showMessage = (title, message) => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      window.alert(`${title}\n${message}`);
+      return;
+    }
+    Alert.alert(title, message);
+  };
+
+  const showEmailExists = () => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      const ok = window.confirm('该邮箱已注册，是否前往登录？');
+      if (ok) navigation.navigate('Login');
+      return;
+    }
+    Alert.alert('注册失败', '该邮箱已注册，是否前往登录？', [
+      { text: '取消', style: 'cancel' },
+      { text: '去登录', onPress: () => navigation.navigate('Login') },
+    ]);
+  };
+
   const onSubmit = async () => {
     if (!email.trim()) {
-      Alert.alert('提示', '请输入邮箱');
+      showMessage('提示', '请输入邮箱');
       return;
     }
     if (password.length < 6) {
-      Alert.alert('提示', '密码至少 6 位');
+      showMessage('提示', '密码至少 6 位');
       return;
     }
     if (password !== password2) {
-      Alert.alert('提示', '两次输入的密码不一致');
+      showMessage('提示', '两次输入的密码不一致');
       return;
     }
     setLoading(true);
@@ -45,7 +65,12 @@ export default function RegisterScreen() {
         nickname: nickname.trim(),
       });
       if (!res.ok) {
-        Alert.alert('注册失败', res.error || '请重试');
+        const msg = res.error || '请重试';
+        if (msg.includes('该邮箱已注册')) {
+          showEmailExists();
+          return;
+        }
+        showMessage('注册失败', msg);
       }
     } finally {
       setLoading(false);
