@@ -43,7 +43,8 @@ export default function AiAssistantScreen() {
 
   const proxyMode = isChatProxyMode();
   const envKey = getPublicDashScopeKeyFromEnv();
-  const hideKeyForm = proxyMode || (Boolean(envKey) && !showManualKey);
+  const isDevBuild = typeof __DEV__ !== 'undefined' && __DEV__;
+  const hideKeyForm = proxyMode || Boolean(envKey) || !isDevBuild || !showManualKey;
 
   useEffect(() => {
     if (proxyMode) return;
@@ -170,7 +171,9 @@ export default function AiAssistantScreen() {
           ) : hideKeyForm ? (
             <>
               <Text style={styles.proxyBanner}>
-                已使用 .env 中的 EXPO_PUBLIC_DASHSCOPE_API_KEY（或兼容名），无需在页面填写密钥。
+                {envKey
+                  ? '已使用 .env 中的 EXPO_PUBLIC_DASHSCOPE_API_KEY（或兼容名），无需在页面填写密钥。'
+                  : '当前为用户模式，不显示 API Key 输入。请由管理员在服务端配置代理后使用。'}
               </Text>
               <TextInput
                 style={styles.modelInputFull}
@@ -180,13 +183,15 @@ export default function AiAssistantScreen() {
                 onChangeText={setModel}
                 autoCapitalize="none"
               />
-              <TouchableOpacity
-                style={styles.linkBtn}
-                onPress={() => setShowManualKey(true)}
-                hitSlop={8}
-              >
-                <Text style={styles.linkBtnText}>改为手动填写 / 保存密钥</Text>
-              </TouchableOpacity>
+              {isDevBuild ? (
+                <TouchableOpacity
+                  style={styles.linkBtn}
+                  onPress={() => setShowManualKey(true)}
+                  hitSlop={8}
+                >
+                  <Text style={styles.linkBtnText}>开发模式：手动填写 / 保存密钥</Text>
+                </TouchableOpacity>
+              ) : null}
             </>
           ) : (
             <>
@@ -226,11 +231,9 @@ export default function AiAssistantScreen() {
                   Web 端可配置 EXPO_PUBLIC_CHAT_PROXY_URL 指向 Netlify `/api/chat` 或 `/.netlify/functions/dashscope-proxy` 避免跨域。
                 </Text>
               ) : null}
-              {envKey ? (
-                <TouchableOpacity style={styles.linkBtn} onPress={() => setShowManualKey(false)} hitSlop={8}>
-                  <Text style={styles.linkBtnText}>收起，继续使用环境变量密钥</Text>
-                </TouchableOpacity>
-              ) : null}
+              <TouchableOpacity style={styles.linkBtn} onPress={() => setShowManualKey(false)} hitSlop={8}>
+                <Text style={styles.linkBtnText}>收起手动密钥输入</Text>
+              </TouchableOpacity>
             </>
           )}
         </View>
