@@ -25,7 +25,7 @@ import {
 } from '../utils/database';
 
 const shortcuts = [
-  { name: 'AI 助手', icon: 'flash-outline', tab: 'AI助手', color: '#7C4DFF' },
+  { name: 'AI智能体助手', icon: 'flash-outline', tab: 'AI助手', color: '#7C4DFF' },
   { name: '时间管理', icon: 'time-outline', tab: '时间管理', color: '#16A34A' },
   { name: '任务追踪', icon: 'checkmark-circle-outline', tab: '任务追踪', color: '#2563EB' },
   { name: '健康管理', icon: 'heart-outline', tab: '健康管理', color: '#E11D48' },

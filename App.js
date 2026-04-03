@@ -75,7 +75,7 @@ function MainTabs() {
   return (
     <Tab.Navigator screenOptions={tabScreenOptions}>
       <Tab.Screen name="首页" component={HomeScreen} options={{ headerShown: false, title: '首页' }} />
-      <Tab.Screen name="AI助手" component={AiAssistantScreen} options={{ title: 'AI 助手' }} />
+      <Tab.Screen name="AI助手" component={AiAssistantScreen} options={{ title: 'AI智能体助手', tabBarLabel: 'AI智能体助手' }} />
       <Tab.Screen name="时间管理" component={TimeManagementScreen} />
       <Tab.Screen name="任务追踪" component={TaskTrackingScreen} />
       <Tab.Screen name="健康管理" component={HealthManagementScreen} />
