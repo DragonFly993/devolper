@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { getTasks, addTask, updateTask, deleteTask as deleteTaskFromDB } from '../utils/database';
 
 const TaskTrackingScreen = () => {
@@ -10,10 +10,12 @@ const TaskTrackingScreen = () => {
   const [newTask, setNewTask] = useState('');
   const [priority, setPriority] = useState('medium');
 
-  // 加载任务
-  useEffect(() => {
-    loadTasks();
-  }, []);
+  // 每次进入页面都刷新任务，保证数据是最新
+  useFocusEffect(
+    useCallback(() => {
+      loadTasks();
+    }, [])
+  );
 
   const loadTasks = async () => {
     try {

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import {
   getHabits,
   addHabit,
@@ -24,10 +24,6 @@ const HabitFormationScreen = () => {
 
   const todayStr = () => new Date().toISOString().split('T')[0];
 
-  useEffect(() => {
-    loadHabits();
-  }, []);
-
   const loadHabitCalendar = useCallback(async () => {
     try {
       const dates = await getHabitCalendarDatesInMonth(calendarYear, calendarMonth);
@@ -40,6 +36,13 @@ const HabitFormationScreen = () => {
   useEffect(() => {
     loadHabitCalendar();
   }, [loadHabitCalendar]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadHabits();
+      loadHabitCalendar();
+    }, [loadHabitCalendar])
+  );
 
   const loadHabits = async () => {
     try {

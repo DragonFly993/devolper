@@ -85,6 +85,62 @@ export const AI_TOOLS = [
   {
     type: 'function',
     function: {
+      name: 'get_time_management_detail',
+      description: '获取时间管理详细数据：今日专注、近7日趋势、当月日历专注映射与番茄完成率。',
+      parameters: { type: 'object', properties: {}, additionalProperties: false },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_task_tracking_detail',
+      description: '获取任务追踪详细数据：总任务、未完成、已完成、高中低优先级分布。',
+      parameters: { type: 'object', properties: {}, additionalProperties: false },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_habit_formation_detail',
+      description: '获取习惯养成详细数据：习惯列表、今日完成数、最长连续、当月打卡日期。',
+      parameters: { type: 'object', properties: {}, additionalProperties: false },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_finance_planning_detail',
+      description: '获取财务规划详细数据：预算、支出收入汇总、分类统计、最新交易明细。',
+      parameters: { type: 'object', properties: {}, additionalProperties: false },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_health_management_detail',
+      description: '获取健康管理详细数据：今日步数/卡路里/睡眠/饮水与基础健康画像。',
+      parameters: { type: 'object', properties: {}, additionalProperties: false },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_wallet_detail',
+      description: '获取钱包模块详细数据：余额、冻结金额、最近流水、最近订单状态。',
+      parameters: { type: 'object', properties: {}, additionalProperties: false },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_reminder_center_detail',
+      description: '获取提醒中心详细数据：提醒总数、启用数、今日提醒数、近期提醒列表。',
+      parameters: { type: 'object', properties: {}, additionalProperties: false },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'add_expense',
       description: '记一笔支出。',
       parameters: {

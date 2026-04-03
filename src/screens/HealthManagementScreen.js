@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { upsertHealthData, getHealthData } from '../utils/database';
 
 const DEFAULTS = { steps: 0, calories: 0, sleep: 0, water: 0 };
@@ -33,11 +34,7 @@ const HealthManagementScreen = () => {
     { id: 3, meal: '晚餐', items: ['面条', '鱼肉', '豆腐'], calories: 500, time: '19:00' },
   ];
 
-  useEffect(() => {
-    loadHealthData();
-  }, []);
-
-  const loadHealthData = async () => {
+  const loadHealthData = useCallback(async () => {
     try {
       const today = new Date().toISOString().split('T')[0];
       const stepsData = await getHealthData('steps', today);
@@ -55,7 +52,17 @@ const HealthManagementScreen = () => {
       console.error('Error loading health data:', error);
       Alert.alert('错误', '加载健康数据失败');
     }
-  };
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadHealthData();
+    }, [loadHealthData])
+  );
+
+  useEffect(() => {
+    loadHealthData();
+  }, [loadHealthData]);
 
   const openEdit = (field, label, unit, current) => {
     setEditModal({

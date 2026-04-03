@@ -14,7 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import { getOpenAiApiKey, saveOpenAiApiKey } from '../auth/aiApiKey';
+import { getOpenAiApiKey } from '../auth/aiApiKey';
 import { getPublicDashScopeKeyFromEnv, isChatProxyMode } from '../config/env';
 import { sendChatMessage, DEFAULT_AI_MODEL } from '../services/aiAgent';
 import { colors } from '../theme/tokens';
@@ -32,19 +32,14 @@ function buildWelcomeText() {
 export default function AiAssistantScreen() {
   const navigation = useNavigation();
   const [apiKey, setApiKey] = useState('');
-  const [keySaved, setKeySaved] = useState(false);
   const [model, setModel] = useState(DEFAULT_AI_MODEL);
   const [input, setInput] = useState('');
   const [rows, setRows] = useState([{ id: 'welcome', role: 'assistant', text: buildWelcomeText() }]);
-  const [showManualKey, setShowManualKey] = useState(false);
   const [apiHistory, setApiHistory] = useState([]);
   const [loading, setLoading] = useState(false);
   const listRef = useRef(null);
 
   const proxyMode = isChatProxyMode();
-  const envKey = getPublicDashScopeKeyFromEnv();
-  const isDevBuild = typeof __DEV__ !== 'undefined' && __DEV__;
-  const hideKeyForm = proxyMode || Boolean(envKey) || !isDevBuild || !showManualKey;
 
   useEffect(() => {
     if (proxyMode) return;
@@ -52,7 +47,6 @@ export default function AiAssistantScreen() {
       const k = await getOpenAiApiKey();
       if (k) {
         setApiKey(k);
-        setKeySaved(true);
         return;
       }
       const fromEnv = getPublicDashScopeKeyFromEnv();
@@ -86,23 +80,12 @@ export default function AiAssistantScreen() {
     });
   }, [navigation, clearChat]);
 
-  const persistKey = async () => {
-    const k = apiKey.trim();
-    if (k.length < 8) {
-      Alert.alert('提示', '请粘贴完整的 DashScope API Key。');
-      return;
-    }
-    await saveOpenAiApiKey(k);
-    setKeySaved(true);
-    Alert.alert('已保存', '密钥已保存在本机；请勿在公共设备使用。');
-  };
-
   const send = async () => {
     const text = input.trim();
     if (!text || loading) return;
     const k = apiKey.trim() || (getPublicDashScopeKeyFromEnv() || '');
     if (!proxyMode && !k) {
-      Alert.alert('需要 API Key', '请先在上方填写并保存阿里云 DashScope API Key。');
+      Alert.alert('服务未配置', '当前服务端未配置 AI 代理，请联系管理员。');
       return;
     }
 
@@ -152,92 +135,6 @@ export default function AiAssistantScreen() {
       keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}
     >
       <SafeAreaView style={styles.flex} edges={['bottom']}>
-        <View style={styles.keySection}>
-          {proxyMode ? (
-            <>
-              <Text style={styles.keyLabel}>服务端代理（免配置密钥）</Text>
-              <Text style={styles.proxyBanner}>
-                已启用 EXPO_PUBLIC_CHAT_PROXY_URL，请求由 Netlify 函数代持 DashScope 密钥，可直接对话。
-              </Text>
-              <TextInput
-                style={styles.modelInputFull}
-                placeholder="模型（默认 qwen-plus）"
-                placeholderTextColor="#aaa"
-                value={model}
-                onChangeText={setModel}
-                autoCapitalize="none"
-              />
-            </>
-          ) : hideKeyForm ? (
-            <>
-              <Text style={styles.proxyBanner}>
-                {envKey
-                  ? '已使用 .env 中的 EXPO_PUBLIC_DASHSCOPE_API_KEY（或兼容名），无需在页面填写密钥。'
-                  : '当前为用户模式，不显示 API Key 输入。请由管理员在服务端配置代理后使用。'}
-              </Text>
-              <TextInput
-                style={styles.modelInputFull}
-                placeholder="模型（默认 qwen-plus）"
-                placeholderTextColor="#aaa"
-                value={model}
-                onChangeText={setModel}
-                autoCapitalize="none"
-              />
-              {isDevBuild ? (
-                <TouchableOpacity
-                  style={styles.linkBtn}
-                  onPress={() => setShowManualKey(true)}
-                  hitSlop={8}
-                >
-                  <Text style={styles.linkBtnText}>开发模式：手动填写 / 保存密钥</Text>
-                </TouchableOpacity>
-              ) : null}
-            </>
-          ) : (
-            <>
-              <Text style={styles.keyLabel}>阿里云 DashScope API Key（通义千问）</Text>
-              <TextInput
-                style={styles.keyInput}
-                placeholder="在阿里云控制台复制 API-Key"
-                placeholderTextColor="#aaa"
-                secureTextEntry
-                value={apiKey}
-                onChangeText={(t) => {
-                  setApiKey(t);
-                  setKeySaved(false);
-                }}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-              <View style={styles.keyRow}>
-                <TextInput
-                  style={styles.modelInput}
-                  placeholder="模型（默认 qwen-plus）"
-                  placeholderTextColor="#aaa"
-                  value={model}
-                  onChangeText={setModel}
-                  autoCapitalize="none"
-                />
-                <TouchableOpacity style={styles.saveKeyBtn} onPress={persistKey}>
-                  <Text style={styles.saveKeyText}>{keySaved ? '更新密钥' : '保存密钥'}</Text>
-                </TouchableOpacity>
-              </View>
-              <Text style={styles.keyHint}>
-                接口：https://dashscope.aliyuncs.com/compatible-mode/v1 。密钥仅存本机；需在阿里云开通 DashScope
-                并充值/试用额度。开发可配置 `.env` 中 EXPO_PUBLIC_DASHSCOPE_API_KEY 预填（重启 Expo）。
-              </Text>
-              {Platform.OS === 'web' ? (
-                <Text style={styles.keyWarn}>
-                  Web 端可配置 EXPO_PUBLIC_CHAT_PROXY_URL 指向 Netlify `/api/chat` 或 `/.netlify/functions/dashscope-proxy` 避免跨域。
-                </Text>
-              ) : null}
-              <TouchableOpacity style={styles.linkBtn} onPress={() => setShowManualKey(false)} hitSlop={8}>
-                <Text style={styles.linkBtnText}>收起手动密钥输入</Text>
-              </TouchableOpacity>
-            </>
-          )}
-        </View>
-
         <FlatList
           ref={listRef}
           data={rows}

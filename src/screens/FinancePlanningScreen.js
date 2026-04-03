@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { getTransactions, addTransaction as addTransactionToDB, getSetting, setSetting } from '../utils/database';
 
 const EXPENSE_CATEGORIES = [
@@ -38,11 +39,7 @@ const FinancePlanningScreen = () => {
   });
   const [budgetModal, setBudgetModal] = useState({ visible: false, draft: '' });
 
-  useEffect(() => {
-    loadAll();
-  }, []);
-
-  const loadAll = async () => {
+  const loadAll = useCallback(async () => {
     try {
       const totalStr = await getSetting('budget_total', '5000');
       const total = parseFloat(String(totalStr));
@@ -55,7 +52,17 @@ const FinancePlanningScreen = () => {
       console.error('Error loading transactions:', error);
       Alert.alert('错误', '加载交易失败');
     }
-  };
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadAll();
+    }, [loadAll])
+  );
+
+  useEffect(() => {
+    loadAll();
+  }, [loadAll]);
 
   const addTransactionHandler = async () => {
     if (newTransaction.title && newTransaction.amount) {
